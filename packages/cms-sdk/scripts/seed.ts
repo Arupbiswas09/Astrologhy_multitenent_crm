@@ -371,6 +371,18 @@ async function ensureFlows() {
         x: 1,
         y: 1,
         options: { filter: { $trigger: { payload: { email: { _nnull: true } } } } },
+        resolve: "cond_consent",
+      },
+      {
+        // Marketing consent is a separate unchecked checkbox (docs/08 §4) —
+        // no beehiiv subscription without it. The report stays viewable in
+        // the browser either way.
+        key: "cond_consent",
+        type: "condition",
+        name: "Marketing consent given?",
+        x: 10,
+        y: 1,
+        options: { filter: { $trigger: { payload: { consent_marketing: { _eq: true } } } } },
         resolve: "read_tenant",
       },
       {

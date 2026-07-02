@@ -46,11 +46,16 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Accessibility floor: visible gold focus rings, 2px offset (doc 07 §7) */
-:focus-visible {
+/* Accessibility floor: visible gold focus rings, 2px offset (doc 07 §7).
+   tabindex="-1" targets receive focus only programmatically (headline focus
+   for screen readers on step change) — no ring for those. */
+:focus-visible:not([tabindex="-1"]) {
   outline: 2px solid var(--gold-400);
   outline-offset: 2px;
   border-radius: 4px;
+}
+[tabindex="-1"]:focus-visible {
+  outline: none;
 }
 
 ::selection {
@@ -74,4 +79,13 @@ body {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Scroll wheels (date picker) hide their scrollbars but stay scrollable */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
