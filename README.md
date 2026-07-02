@@ -1,27 +1,97 @@
-# Astro Note — Build Pack
+# Astro Note
 
-Complete hand-off pack for building the Astro Note numerology funnel with Claude Code + Google Stitch.
+Mobile-first numerology quiz funnel: 9-step quiz → free personalized report → email
+capture → newsletter co-registration + affiliate offers. **Multi-tenant** — one codebase +
+one Directus CMS serve the whole funnel network. Site #1: Astro Note.
 
-## How to use
-1. Create a new repo, copy this whole folder in (CLAUDE.md at repo root, docs/ alongside).
-2. Run the Stitch prompts in `docs/07-DESIGN-SYSTEM.md` §6, export screens to `design/stitch-exports/` and brand assets (incl. your logos) to `apps/web/public/brand/`.
-3. Open the repo in Claude Code and say: "Read CLAUDE.md and docs/, then start Phase 0 from docs/09-BUILD-PHASES.md."
-4. Work phase by phase (0→7). ~9–13 working days total.
+Built per `docs/01…09` (read them in order). Phases 0–6 of `docs/09-BUILD-PHASES.md` are
+implemented and verified; Phase 7 (production deploy) is a runbook below.
 
-## Files
-- CLAUDE.md — master rules for Claude Code
-- docs/01-PRD.md — goals, funnel, KPIs
-- docs/02-ARCHITECTURE.md — stack + multi-tenant + why Directus
-- docs/03-CMS-SCHEMA.md — every Directus collection & Flow
-- docs/04-NUMEROLOGY-ENGINE.md — algorithms + test vectors
-- docs/05-QUIZ-FLOW.md — all 9 steps with copy
-- docs/06-REPORT-CONTENT-SYSTEM.md — content blocks, selection logic, ~122-block inventory
-- docs/07-DESIGN-SYSTEM.md — tokens, animations, Stitch prompts
-- docs/08-INTEGRATIONS.md — beehiiv, co-reg, pixels, consent
-- docs/09-BUILD-PHASES.md — build order + checklists
+## Repo layout
 
-## Owner TODO (not Claude Code)
-- Logos → apps/web/public/brand/
-- Register domain, beehiiv account + publication, VPS (Hetzner ~€5), Vercel account
-- Draft the ~122 content blocks (use Claude chat with doc 06 §2 + §5 as the brief)
-- Privacy policy + terms text (CMS settings)
+```
+apps/web/                 Next.js 15 multi-tenant frontend (App Router, Tailwind v4)
+packages/numerology/      pure Pythagorean engine — 35 tests, 100% coverage
+packages/report-composer/ block selection + interpolation — 11 tests
+packages/cms-sdk/         typed Directus client, fetch helpers, seed scripts
+cms/                      docker-compose (Directus 11 + Postgres 16 + prod Caddy/backup),
+                          schema.yaml snapshot, seed entrypoint
+docs/                     the spec — source of truth
+```
+
+## Local development
+
+```bash
+pnpm install
+pnpm cms:up                      # Directus at :8055 (admin@example.com / astro-note-admin)
+pnpm cms:seed                    # idempotent: schema, roles/tokens, flows, 2 tenants, content
+cp apps/web/.env.example apps/web/.env.local
+pnpm dev                         # web at :3000 — localhost resolves tenant astro-note
+```
+
+- Tenant override in dev: `http://localhost:3000/?tenant=moon-letter`
+- Verify everything: `pnpm lint && pnpm test && pnpm build`
+- E2E (needs seeded Directus): `pnpm --filter @astro-note/web test:e2e`
+- Integration tests: `pnpm --filter @astro-note/cms-sdk test:integration`
+
+## How it works
+
+- `apps/web/src/middleware.ts` maps Host → tenant slug (5-min cached map from Directus,
+  stale-if-error) and rewrites to `/t/<slug>/…` (per-tenant ISR, 300 s). Unknown host → 404.
+- Quiz steps, landing copy, report content blocks, offers, legal text: **all in Directus**.
+  The web app only ships structure + fallbacks for CMS outages.
+- `POST /api/lead`: zod → honeypot → rate limit (5/min/IP) → disposable-domain block →
+  MX check (fail-open) → numerology engine → composer → lead row (with chosen block IDs +
+  signed 30-day report token + report_url) → `{token}`. beehiiv subscribe happens ONLY in
+  the Directus Flow (consent-gated) — never double-subscribe.
+- `/report/<token>`: HMAC-verified, per-lead, `noindex`. Persisted blocks keep the report
+  reproducible; the Personal Year section stays live so return visits change.
+- Consent: banner (Accept / Essential). Plausible is always-on (cookieless); Meta Pixel
+  loads only after Accept; server CAPI Lead is sent only with marketing consent, deduped
+  via `event_id = lead id`.
+
+## Phase 7 — production deploy runbook
+
+**CMS (VPS, e.g. Hetzner):**
+1. Copy `cms/` to the server, `cp .env.example .env`, set strong `DIRECTUS_SECRET`,
+   `DIRECTUS_ADMIN_PASSWORD`, `DIRECTUS_ADMIN_TOKEN`, `DB_PASSWORD`, `CMS_DOMAIN`,
+   `DIRECTUS_PUBLIC_URL=https://<CMS_DOMAIN>`, beehiiv keys.
+2. `docker compose --profile production up -d` (adds Caddy TLS + nightly pg_dump to
+   `cms/data/backups`, 14-day retention). Point `CMS_DOMAIN` DNS at the VPS first.
+3. Run the seed from your machine against production:
+   `DIRECTUS_URL=https://<CMS_DOMAIN> DIRECTUS_ADMIN_TOKEN=… DIRECTUS_WEB_TOKEN=… DIRECTUS_LEADS_TOKEN=… pnpm cms:seed`
+4. In Directus: enable 2FA for admin, replace placeholder privacy/terms, paste real
+   content blocks (~122 per `docs/06 §2`), set `beehiiv_publication_id` on the tenant.
+
+**Web (Vercel):**
+1. Import the repo, root directory `apps/web` (or use monorepo detection), framework Next.js.
+2. Env vars: `DIRECTUS_URL`, `DIRECTUS_STATIC_TOKEN`, `DIRECTUS_LEADS_TOKEN`,
+   `REPORT_TOKEN_SECRET` (32+ random bytes), `DEFAULT_TENANT=astro-note`,
+   optional `META_CAPI_TOKEN`.
+3. Add the tenant domains (`astronote.com`, `www`) to the Vercel project; point DNS
+   (Cloudflare proxy optional — `cf-ipcountry` then geo-gates the co-reg slot; on plain
+   Vercel `x-vercel-ip-country` is used).
+4. Smoke test: quiz → email → report on the real domain; confirm beehiiv double-opt-in
+   email arrives (welcome email must use the `report_url` merge field, docs/08 §1).
+
+**Add a new site in ~30 minutes (zero code):**
+1. Directus → tenants: new row (slug, name, domains, status `live`, theme JSON — palette
+   from docs/07 §2, logo paths), `beehiiv_publication_id`, optional pixel/plausible ids.
+2. Duplicate the quiz flow + 9 steps for the tenant (or re-run seed with the tenant in
+   `seed-data.ts`), add the 13 wildcard blocks minimum (composer requires them), offer,
+   settings row.
+3. Vercel: add the new domains. DNS → Vercel. Done — middleware picks it up within 5 min.
+
+## Privacy / data deletion (GDPR/CCPA manual process)
+
+Delete the lead row in Directus (leads collection) — the report link stops working
+immediately (the page 404s when the row is gone). beehiiv unsubscribe/deletion is handled
+in beehiiv. Document requests via the support inbox listed in the tenant's settings.
+
+## Owner TODO (not code)
+
+- Draft the ~122 content blocks (docs/06 §2 inventory; seed ships wildcard fallbacks +
+  demo variants only)
+- Final privacy policy + terms text (CMS settings)
+- beehiiv: publication per tenant, double opt-in ON, welcome email with `report_url`
+- Ad accounts: keep copy inside docs/06 §5 compliance rules
