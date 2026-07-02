@@ -563,6 +563,43 @@ export const COLLECTIONS: CollectionDef[] = [
         meta: { special: ["cast-json"], interface: "input-code", options: { language: "JSON" } },
         schema: {},
       },
+      // DECISION: landing copy lives on settings — doc 03 has no landing
+      // collection but the "no hardcoded content" rule requires it in the CMS.
+      {
+        field: "landing_headline",
+        type: "string",
+        meta: { interface: "input", note: "Landing hero headline." },
+        schema: {},
+      },
+      {
+        field: "landing_subline",
+        type: "text",
+        meta: { interface: "input-multiline" },
+        schema: {},
+      },
+      {
+        field: "landing_cta_label",
+        type: "string",
+        meta: { interface: "input", width: "half" },
+        schema: {},
+      },
+      {
+        field: "landing_trust_row",
+        type: "string",
+        meta: { interface: "input", note: "Small reassurance line under the CTA." },
+        schema: {},
+      },
+      {
+        field: "landing_discover",
+        type: "json",
+        meta: {
+          special: ["cast-json"],
+          interface: "input-code",
+          options: { language: "JSON" },
+          note: '"What you\'ll discover" cards: [{"title","body"}].',
+        },
+        schema: {},
+      },
     ],
   },
 

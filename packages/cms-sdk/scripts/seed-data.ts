@@ -374,4 +374,23 @@ export const SETTINGS = {
     "We use one lightweight, cookie-free analytics tool to understand how the site is used. Marketing pixels load only if you accept.",
   support_email: "support@astronote.com",
   social_links: [],
+  landing_headline: "Your numbers have been waiting for you.",
+  landing_subline:
+    "A free, personalized numerology reading — from your name and birth date.",
+  landing_cta_label: "Begin my reading",
+  landing_trust_row: "2-minute reading · 100% free · No signup to start",
+  landing_discover: [
+    {
+      title: "Your Life Path, decoded",
+      body: "The single number your birth date reduces to — and what it says about the direction your life keeps pulling toward.",
+    },
+    {
+      title: "Every letter, weighed",
+      body: "Your birth name carries values. Watch them turn into your Expression, Soul Urge, and Personality numbers.",
+    },
+    {
+      title: "The year you're in",
+      body: "Your Personal Year sets the season's tempo. Learn what this cycle rewards — and what it quietly resists.",
+    },
+  ],
 };

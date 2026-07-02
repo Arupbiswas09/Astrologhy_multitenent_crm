@@ -476,6 +476,18 @@ async function ensureItem(
   const existing = await findOne(`/items/${collection}`, filter);
   if (existing) {
     log("skip", label);
+    // Additive augment: fill fields that are still null on the existing row
+    // (new seed fields on old rows). Never overwrites owner-edited values.
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(payload)) {
+      if (value !== null && value !== undefined && existing[key] === null) {
+        patch[key] = value;
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await api(`/items/${collection}/${existing.id}`, { method: "PATCH", body: patch });
+      log("create", `${label} ← filled ${Object.keys(patch).join(", ")}`);
+    }
     return existing.id;
   }
   const row = await api<Row>(`/items/${collection}`, { method: "POST", body: payload });
