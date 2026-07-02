@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 import { createCmsClient, listTenantDomains } from "@astro-note/cms-sdk";
-import { getTenant } from "@/lib/cms";
+import { ConsentBanner } from "@/components/ConsentBanner";
+import { MetaPixel } from "@/components/MetaPixel";
+import { getTenant, getTenantSettings } from "@/lib/cms";
 import { themeToCssVars } from "@/lib/theme";
 
 /**
@@ -36,12 +38,19 @@ export async function generateMetadata({
   const { tenant: slug } = await params;
   const tenant = await getTenant(slug);
   if (!tenant) return {};
+  const description = "A free, personalized numerology reading — from your name and birth date.";
   return {
     title: {
       default: `${tenant.name} — your personalized numerology reading`,
       template: `%s · ${tenant.name}`,
     },
-    description: "A free, personalized numerology reading — from your name and birth date.",
+    description,
+    openGraph: {
+      siteName: tenant.name,
+      title: `${tenant.name} — your personalized numerology reading`,
+      description,
+      type: "website",
+    },
   };
 }
 
@@ -56,12 +65,17 @@ export default async function TenantLayout({
   const tenant = await getTenant(slug);
   if (!tenant) notFound();
 
+  const settings = await getTenantSettings(tenant.id);
   const cssVars = themeToCssVars(tenant.theme);
+  const bannerCopy =
+    settings?.cookie_banner ??
+    "We use one lightweight, cookie-free analytics tool. Marketing pixels load only if you accept.";
 
   return (
     <>
       {cssVars ? <style>{cssVars}</style> : null}
       {children}
+      <ConsentBanner copy={bannerCopy} />
       {tenant.plausible_domain ? (
         <Script
           defer
@@ -70,6 +84,7 @@ export default async function TenantLayout({
           strategy="afterInteractive"
         />
       ) : null}
+      {tenant.meta_pixel_id ? <MetaPixel pixelId={tenant.meta_pixel_id} /> : null}
     </>
   );
 }

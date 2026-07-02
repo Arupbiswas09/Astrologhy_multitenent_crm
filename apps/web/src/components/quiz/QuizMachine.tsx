@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { MotionProvider } from "@/components/motion";
+import { firePixelEvent } from "@/components/MetaPixel";
 import { ProgressBar } from "@/components/quiz/ProgressBar";
 import { ChoiceStep } from "@/components/quiz/steps/ChoiceStep";
 import { DateWheelStep } from "@/components/quiz/steps/DateWheelStep";
@@ -101,8 +102,11 @@ function QuizMachineInner({ tenantSlug, steps }: QuizMachineProps) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "We couldn't save your reading. Please try again.");
       }
-      const { token } = (await res.json()) as { token: string };
+      const { token, event_id } = (await res.json()) as { token: string; event_id?: string };
       track("email_submitted", { tenant: tenantSlug });
+      // Browser-side pixel Lead (no-op without consent); event_id dedupes
+      // against the server CAPI event (docs/08 §3).
+      firePixelEvent("Lead", undefined, event_id);
       reset();
       router.push(`/report/${token}`);
     } catch (err) {

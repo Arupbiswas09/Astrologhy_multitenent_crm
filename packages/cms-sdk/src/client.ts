@@ -74,11 +74,11 @@ export function createCmsClient(options: CmsClientOptions): CmsClient {
   const baseUrl = options.url.replace(/\/+$/, "");
   const fetchImpl = options.fetchImpl ?? fetch;
 
-  async function request<T>(
-    path: string,
-    init: RequestInit & { next?: unknown } = {},
-    cache?: CacheOptions,
-  ): Promise<T> {
+  // `next` (ISR hints) and `cache` are consumed by Next's patched fetch;
+  // plain runtimes ignore them. Typed locally — Node's lib lacks `cache`.
+  type FetchInit = RequestInit & { next?: unknown; cache?: "no-store" | "force-cache" };
+
+  async function request<T>(path: string, init: FetchInit = {}, cache?: CacheOptions): Promise<T> {
     const url = `${baseUrl}${path}`;
     const headers: Record<string, string> = {
       Accept: "application/json",
@@ -86,7 +86,7 @@ export function createCmsClient(options: CmsClientOptions): CmsClient {
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     };
 
-    const nextInit: RequestInit & { next?: unknown } = { ...init, headers };
+    const nextInit: FetchInit = { ...init, headers };
     if (cache) {
       if (cache.revalidate === false) {
         nextInit.cache = "no-store";

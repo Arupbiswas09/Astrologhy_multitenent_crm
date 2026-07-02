@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { computeProfile } from "@astro-note/numerology";
 import { composeReport, interpolate, type ComposedSection } from "@astro-note/report-composer";
@@ -8,6 +7,7 @@ import { getLead, type QuizChoiceOption } from "@astro-note/cms-sdk";
 import { InkGlyph } from "@/components/ink/InkGlyph";
 import { InkNumber } from "@/components/ink/InkNumber";
 import { MotionProvider } from "@/components/motion";
+import { PixelEvent } from "@/components/MetaPixel";
 import { CalcMoment } from "@/components/report/CalcMoment";
 import { CoRegSlot } from "@/components/report/CoRegSlot";
 import { OfferCta, ReportAnalytics, ShareRow } from "@/components/report/ReportChrome";
@@ -157,6 +157,7 @@ export default async function ReportPage({
   return (
     <main className="mx-auto w-full max-w-md px-6 pt-10 pb-8 md:max-w-lg">
       <ReportAnalytics tenantSlug={slug} />
+      {tenant.meta_pixel_id ? <PixelEvent event="ViewContent" /> : null}
 
       {/* 1 — Hero reveal: finishes the open loop from the interstitial */}
       <MotionProvider>

@@ -83,7 +83,7 @@ describe("createCmsClient", () => {
     await client.items("tenants", {}, { revalidate: 300, tags: ["tenant"] });
 
     const calls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls as Array<
-      [string, RequestInit & { next?: unknown }]
+      [string, RequestInit & { next?: unknown; cache?: string }]
     >;
     expect(calls[0]?.[1].cache).toBe("no-store");
     expect(calls[1]?.[1].next).toEqual({ revalidate: 300, tags: ["tenant"] });

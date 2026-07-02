@@ -6,6 +6,7 @@ import { composeReport } from "@astro-note/report-composer";
 import { createLead, type QuizChoiceOption } from "@astro-note/cms-sdk";
 import { cmsLeads, getTenant, getTenantBlocks, getTenantQuizFlow } from "@/lib/cms";
 import { hasMxRecords, isDisposableEmail } from "@/lib/email-checks";
+import { sendCapiLead } from "@/lib/meta-capi";
 import { deriveFirstName } from "@/lib/interpolate";
 import { validateDob, validateFullName } from "@/lib/quiz-validation";
 import { allowRequest } from "@/lib/rate-limit";
@@ -137,7 +138,20 @@ export async function POST(request: NextRequest) {
       report_url: reportUrl,
     });
 
-    return NextResponse.json({ token });
+    // Server CAPI Lead (dedup: event_id = lead id, mirrored by the browser
+    // pixel). Only with explicit marketing consent; never blocks the response.
+    if (consent_marketing && tenant.meta_pixel_id) {
+      void sendCapiLead({
+        pixelId: tenant.meta_pixel_id,
+        email,
+        eventId: leadId,
+        sourceUrl: reportUrl,
+        clientIp: clientIp(request),
+        userAgent: request.headers.get("user-agent") ?? undefined,
+      });
+    }
+
+    return NextResponse.json({ token, event_id: leadId });
   } catch (err) {
     console.error("[/api/lead] failed:", err instanceof Error ? err.message : err);
     return NextResponse.json(
