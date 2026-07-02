@@ -81,6 +81,20 @@ body {
   }
 }
 
+/* Section reveal (constellation-settle): SSR-visible; hidden only after
+   hydration for below-fold sections, then drifts in once. */
+.reveal-pending {
+  opacity: 0;
+  transform: translateY(22px);
+}
+.reveal-pending.reveal-shown {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.55s ease-out,
+    transform 0.55s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+
 /* Scroll wheels (date picker) hide their scrollbars but stay scrollable */
 .no-scrollbar {
   scrollbar-width: none;
