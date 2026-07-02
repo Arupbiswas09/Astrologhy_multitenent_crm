@@ -1,0 +1,24 @@
+{
+  "name": "@astro-note/cms-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src scripts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "seed": "tsx scripts/seed.ts",
+    "test:integration": "RUN_CMS_INTEGRATION=1 vitest run"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^3.0.0"
+  }
+}

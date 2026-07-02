@@ -1,0 +1,28 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.local
+.env*.local
+!.env.example
+
+# cms runtime data
+cms/uploads/
+cms/data/
+cms/extensions/
+
+# misc
+.DS_Store
+*.log
+coverage/
+.vercel/
+test-results/
+playwright-report/

@@ -1,0 +1,98 @@
+# Astro Note CMS — Directus 11 + Postgres 16 (docs/02-ARCHITECTURE.md §6)
+#
+# Local dev:   docker compose -f cms/docker-compose.yml up -d
+# Production:  docker compose -f cms/docker-compose.yml --profile production up -d
+#              (adds Caddy TLS reverse proxy + nightly pg_dump sidecar)
+#
+# Copy cms/.env.example → cms/.env before first start.
+
+name: astro-note-cms
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-directus}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-directus}
+      POSTGRES_DB: ${DB_DATABASE:-directus}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-directus} -d ${DB_DATABASE:-directus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  directus:
+    image: directus/directus:11
+    restart: unless-stopped
+    ports:
+      - "${DIRECTUS_PORT:-8055}:8055"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/directus/uploads
+      - ./extensions:/directus/extensions
+    environment:
+      SECRET: ${DIRECTUS_SECRET:-insecure-local-secret-change-me}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-directus}
+      DB_USER: ${DB_USER:-directus}
+      DB_PASSWORD: ${DB_PASSWORD:-directus}
+
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:-astro-note-admin}
+      # Static token for the initial admin user — used by cms/seed and schema scripts.
+      ADMIN_TOKEN: ${DIRECTUS_ADMIN_TOKEN:-astro-note-admin-token}
+
+      WEBSOCKETS_ENABLED: "false"
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: "true"
+      TELEMETRY: "false"
+
+      # Directus Flows reach these (doc 03 "Flows to configure")
+      FLOWS_ENV_ALLOW_LIST: "BEEHIIV_API_KEY,BEEHIIV_PUBLICATION_ID"
+      BEEHIIV_API_KEY: ${BEEHIIV_API_KEY:-}
+      BEEHIIV_PUBLICATION_ID: ${BEEHIIV_PUBLICATION_ID:-}
+
+  # ── production-only services ──────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["production"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+    environment:
+      CMS_DOMAIN: ${CMS_DOMAIN:-cms.example.com}
+    depends_on:
+      - directus
+
+  backup:
+    image: postgres:16-alpine
+    profiles: ["production"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-directus}
+    volumes:
+      - ./data/backups:/backups
+    # Nightly pg_dump at 02:30, keep 14 days (doc 02 §6)
+    entrypoint: >
+      /bin/sh -c 'while true; do
+        sleep_until=$$(( ( $$(date -d "02:30" +%s 2>/dev/null || date +%s) + 86400 - $$(date +%s) ) % 86400 ));
+        sleep $$sleep_until;
+        pg_dump -h postgres -U ${DB_USER:-directus} ${DB_DATABASE:-directus} | gzip > /backups/directus-$$(date +%Y%m%d).sql.gz;
+        find /backups -name "*.sql.gz" -mtime +14 -delete;
+      done'

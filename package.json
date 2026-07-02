@@ -1,0 +1,22 @@
+{
+  "name": "astro-note",
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @astro-note/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,css,yml,yaml}\"",
+    "cms:up": "docker compose -f cms/docker-compose.yml up -d",
+    "cms:down": "docker compose -f cms/docker-compose.yml down",
+    "cms:seed": "pnpm --filter @astro-note/cms-sdk seed"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.0"
+  }
+}

@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/*
+ * Astro Note — "The Cosmic Notebook" design tokens (docs/07-DESIGN-SYSTEM.md §2).
+ * Values live on :root so a tenant's `theme` JSON can override them at runtime
+ * (inline <style> injected by the tenant layout). Tailwind utilities map to the
+ * variables via @theme inline, so `bg-ink-950` etc. follow tenant overrides.
+ */
+:root {
+  --ink-950: #0b0e1c; /* page background — deep night ink */
+  --ink-900: #12172b; /* cards */
+  --ink-700: #2a3352; /* borders, dividers */
+  --paper-100: #f5efe2; /* primary text on ink; also light-section bg */
+  --paper-300: #cfc6b2; /* secondary text */
+  --gold-400: #e4b85c; /* THE accent: numbers, CTAs, ink strokes */
+  --gold-200: #f2d89a; /* gold highlight/glow */
+  --violet-500: #8b7ec8; /* rare secondary accent: links, personal-year section only */
+  --radius: 14px;
+}
+
+@theme inline {
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-paper-100: var(--paper-100);
+  --color-paper-300: var(--paper-300);
+  --color-gold-400: var(--gold-400);
+  --color-gold-200: var(--gold-200);
+  --color-violet-500: var(--violet-500);
+  --radius-card: var(--radius);
+  --font-display: var(--font-fraunces, "Fraunces"), Georgia, serif;
+  --font-body: var(--font-satoshi, "Satoshi"), system-ui, sans-serif;
+  --font-annotation: var(--font-caveat, "Caveat"), cursive;
+}
+
+html {
+  background: var(--ink-950);
+  color: var(--paper-100);
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Accessibility floor: visible gold focus rings, 2px offset (doc 07 §7) */
+:focus-visible {
+  outline: 2px solid var(--gold-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--gold-400);
+  color: var(--ink-950);
+}
+
+/* Barely-there radial ink glow behind heroes — the only allowed gradient (doc 07 §4) */
+.ink-glow {
+  background: radial-gradient(
+    ellipse 70% 45% at 50% 32%,
+    rgba(228, 184, 92, 0.07),
+    transparent 70%
+  );
+}
+
+/* Decorative animation is disabled under prefers-reduced-motion (doc 07 §5).
+   Functional transitions are kept short instead of removed. */
+@media (prefers-reduced-motion: reduce) {
+  .motion-decorative {
+    animation: none !important;
+    transition: none !important;
+  }
+}
