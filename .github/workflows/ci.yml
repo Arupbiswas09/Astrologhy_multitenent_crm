@@ -1,4 +1,14 @@
-name: CI
+name: CI/CD
+
+# Pipeline: verify (lint+test+build) on every push/PR →
+# on main: deploy CMS stack to the VPS + seed (idempotent) → deploy web to Vercel.
+#
+# Deploy jobs self-skip until their secrets exist. Required repo secrets:
+#   VPS_SSH_KEY        private key authorized on the VPS (CI-dedicated)
+#   VPS_HOST           e.g. 217.76.48.139
+#   DIRECTUS_URL       e.g. https://cms.217-76-48-139.sslip.io
+#   DIRECTUS_ADMIN_TOKEN / DIRECTUS_WEB_TOKEN / DIRECTUS_LEADS_TOKEN   (seed)
+#   VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID                   (web)
 
 on:
   push:
@@ -34,3 +44,95 @@ jobs:
           DIRECTUS_STATIC_TOKEN: ci-placeholder
           REPORT_TOKEN_SECRET: ci-placeholder-secret-32-bytes-min!!!
           DEFAULT_TENANT: astro-note
+
+  deploy-cms:
+    name: Deploy CMS → VPS
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy-cms
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate on secrets
+        id: gate
+        run: echo "ok=${{ secrets.VPS_SSH_KEY != '' && secrets.VPS_HOST != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up SSH
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync stack files & apply
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          scp -i ~/.ssh/deploy_key cms/docker-compose.yml cms/Caddyfile \
+            "root@${{ secrets.VPS_HOST }}:/opt/astro-note/"
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+            "cd /opt/astro-note && docker compose --profile production up -d --remove-orphans"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.gate.outputs.ok == 'true'
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Seed CMS (idempotent — never overwrites CMS edits)
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          DIRECTUS_URL: ${{ secrets.DIRECTUS_URL }}
+          DIRECTUS_ADMIN_TOKEN: ${{ secrets.DIRECTUS_ADMIN_TOKEN }}
+          DIRECTUS_WEB_TOKEN: ${{ secrets.DIRECTUS_WEB_TOKEN }}
+          DIRECTUS_LEADS_TOKEN: ${{ secrets.DIRECTUS_LEADS_TOKEN }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @astro-note/cms-sdk seed
+
+      - name: Health check
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          curl -sf --max-time 15 "${{ secrets.DIRECTUS_URL }}/server/health" | grep -q '"ok"'
+          echo "CMS healthy"
+
+  deploy-web:
+    name: Deploy web → Vercel
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate on secrets
+        id: gate
+        run: echo "ok=${{ secrets.VERCEL_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.gate.outputs.ok == 'true'
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Deploy to Vercel (production)
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx vercel@latest build --prod --token="$VERCEL_TOKEN"
+          npx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
