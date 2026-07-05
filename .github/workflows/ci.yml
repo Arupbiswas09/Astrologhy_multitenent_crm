@@ -92,6 +92,15 @@ jobs:
           ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
             "cd /opt/astro-note && docker compose --profile production up -d --remove-orphans && docker compose restart directus"
 
+      - name: Wait for Directus to be ready
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          for i in $(seq 1 40); do
+            curl -sf --max-time 5 "${{ secrets.DIRECTUS_URL }}/server/health" | grep -q '"ok"' && { echo "ready after ${i}0s"; exit 0; }
+            sleep 5
+          done
+          echo "Directus did not become ready in time"; exit 1
+
       - name: Seed CMS (idempotent — never overwrites CMS edits)
         if: steps.gate.outputs.ok == 'true'
         env:
@@ -99,9 +108,7 @@ jobs:
           DIRECTUS_ADMIN_TOKEN: ${{ secrets.DIRECTUS_ADMIN_TOKEN }}
           DIRECTUS_WEB_TOKEN: ${{ secrets.DIRECTUS_WEB_TOKEN }}
           DIRECTUS_LEADS_TOKEN: ${{ secrets.DIRECTUS_LEADS_TOKEN }}
-        run: |
-          sleep 6
-          pnpm --filter @astro-note/cms-sdk seed
+        run: pnpm --filter @astro-note/cms-sdk seed
 
       - name: Health check (CMS + backend extension)
         if: steps.gate.outputs.ok == 'true'
