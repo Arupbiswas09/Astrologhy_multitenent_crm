@@ -1,0 +1,35 @@
+{
+  "name": "directus-extension-reading",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Astro Note backend: lead capture + numerology engine + report composition as a Directus endpoint",
+  "icon": "extension",
+  "keywords": ["directus", "directus-extension", "directus-custom-endpoint"],
+  "directus:extension": {
+    "type": "endpoint",
+    "path": "dist/index.js",
+    "source": "src/index.ts",
+    "host": "^11.0.0"
+  },
+  "scripts": {
+    "build": "directus-extension build",
+    "dev": "directus-extension build -w --no-minify",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@astro-note/numerology": "workspace:*",
+    "@astro-note/report-composer": "workspace:*",
+    "disposable-email-domains": "^1.0.62",
+    "jose": "^6.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "^13.0.0",
+    "@types/node": "^22.20.0",
+    "eslint": "^9.39.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.62.1"
+  }
+}

@@ -56,6 +56,10 @@ services:
       CORS_ORIGIN: "true"
       TELEMETRY: "false"
 
+      # Backend "reading" extension (lead capture + numerology + composer)
+      EXTENSIONS_AUTO_RELOAD: "true"
+      REPORT_TOKEN_SECRET: ${REPORT_TOKEN_SECRET:-}
+
       # Directus Flows reach these (doc 03 "Flows to configure")
       FLOWS_ENV_ALLOW_LIST: "BEEHIIV_API_KEY,BEEHIIV_PUBLICATION_ID"
       BEEHIIV_API_KEY: ${BEEHIIV_API_KEY:-}
