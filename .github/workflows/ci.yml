@@ -64,14 +64,6 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Sync stack files & apply
-        if: steps.gate.outputs.ok == 'true'
-        run: |
-          scp -i ~/.ssh/deploy_key cms/docker-compose.yml cms/Caddyfile \
-            "root@${{ secrets.VPS_HOST }}:/opt/astro-note/"
-          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
-            "cd /opt/astro-note && docker compose --profile production up -d --remove-orphans"
-
       - uses: pnpm/action-setup@v4
         if: steps.gate.outputs.ok == 'true'
 
@@ -81,6 +73,25 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Install & build backend extension
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter directus-extension-reading build
+
+      - name: Sync stack + extension & apply
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          scp -i ~/.ssh/deploy_key cms/docker-compose.yml cms/Caddyfile \
+            "root@${{ secrets.VPS_HOST }}:/opt/astro-note/"
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+            "mkdir -p /opt/astro-note/extensions/directus-extension-reading"
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            packages/directus-reading/dist packages/directus-reading/package.json \
+            "root@${{ secrets.VPS_HOST }}:/opt/astro-note/extensions/directus-extension-reading/"
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+            "cd /opt/astro-note && docker compose --profile production up -d --remove-orphans && docker compose restart directus"
+
       - name: Seed CMS (idempotent — never overwrites CMS edits)
         if: steps.gate.outputs.ok == 'true'
         env:
@@ -89,14 +100,15 @@ jobs:
           DIRECTUS_WEB_TOKEN: ${{ secrets.DIRECTUS_WEB_TOKEN }}
           DIRECTUS_LEADS_TOKEN: ${{ secrets.DIRECTUS_LEADS_TOKEN }}
         run: |
-          pnpm install --frozen-lockfile
+          sleep 6
           pnpm --filter @astro-note/cms-sdk seed
 
-      - name: Health check
+      - name: Health check (CMS + backend extension)
         if: steps.gate.outputs.ok == 'true'
         run: |
           curl -sf --max-time 15 "${{ secrets.DIRECTUS_URL }}/server/health" | grep -q '"ok"'
-          echo "CMS healthy"
+          curl -sf --max-time 15 "${{ secrets.DIRECTUS_URL }}/reading/tenant/217-76-48-139.sslip.io" | grep -q '"tenant"'
+          echo "CMS + reading extension healthy"
 
   deploy-web:
     name: Deploy web → VPS (Docker behind Caddy/Cloudflare)
