@@ -1,0 +1,29 @@
+# Web app stack — deployed by CI to /opt/astro-note-web/docker-compose.yml.
+# Source is rsynced to /opt/astro-note-web/src; the image builds there.
+# The container joins the CMS compose network so it reads Directus over the
+# internal network (http://directus:8055) and Caddy proxies to it by name.
+
+name: astro-note-web
+
+services:
+  web:
+    container_name: astro-note-web
+    build:
+      context: ./src
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Public CMS URL — the build network can't reach the compose network
+        DIRECTUS_URL: ${BUILD_DIRECTUS_URL:-https://cms.217-76-48-139.sslip.io}
+        DIRECTUS_STATIC_TOKEN: ${DIRECTUS_STATIC_TOKEN:-}
+        DEFAULT_TENANT: ${DEFAULT_TENANT:-astro-note}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3001:3000" # loopback only — Caddy fronts the public side
+    networks:
+      - cms
+
+networks:
+  cms:
+    name: astro-note-cms_default
+    external: true

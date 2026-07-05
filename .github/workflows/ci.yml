@@ -8,7 +8,7 @@ name: CI/CD
 #   VPS_HOST           e.g. 217.76.48.139
 #   DIRECTUS_URL       e.g. https://cms.217-76-48-139.sslip.io
 #   DIRECTUS_ADMIN_TOKEN / DIRECTUS_WEB_TOKEN / DIRECTUS_LEADS_TOKEN   (seed)
-#   VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID                   (web)
+#   WEB_URL            public URL of the web app (health check)
 
 on:
   push:
@@ -99,7 +99,7 @@ jobs:
           echo "CMS healthy"
 
   deploy-web:
-    name: Deploy web → Vercel
+    name: Deploy web → VPS (Docker behind Caddy/Cloudflare)
     needs: verify
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -109,24 +109,34 @@ jobs:
 
       - name: Gate on secrets
         id: gate
-        run: echo "ok=${{ secrets.VERCEL_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+        run: echo "ok=${{ secrets.VPS_SSH_KEY != '' && secrets.VPS_HOST != '' }}" >> "$GITHUB_OUTPUT"
 
-      - uses: pnpm/action-setup@v4
+      - name: Set up SSH
         if: steps.gate.outputs.ok == 'true'
-
-      - uses: actions/setup-node@v4
-        if: steps.gate.outputs.ok == 'true'
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Deploy to Vercel (production)
-        if: steps.gate.outputs.ok == 'true'
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npx vercel@latest build --prod --token="$VERCEL_TOKEN"
-          npx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync source & stack file
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          rsync -az --delete --exclude .git \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "root@${{ secrets.VPS_HOST }}:/opt/astro-note-web/src/"
+          scp -i ~/.ssh/deploy_key cms/web-compose.yml \
+            "root@${{ secrets.VPS_HOST }}:/opt/astro-note-web/docker-compose.yml"
+
+      - name: Build & roll the container
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+            "cd /opt/astro-note-web && docker compose build --pull && docker compose up -d && docker image prune -f"
+
+      - name: Health check
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          sleep 8
+          curl -sf --max-time 20 "${{ secrets.WEB_URL }}/" -o /dev/null
+          echo "web healthy at ${{ secrets.WEB_URL }}"

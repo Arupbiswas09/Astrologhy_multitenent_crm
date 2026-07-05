@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 /**
@@ -29,6 +30,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Self-hosted in Docker behind Caddy + Cloudflare CDN (no Vercel).
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   transpilePackages: [
     "@astro-note/numerology",
     "@astro-note/report-composer",

@@ -63,14 +63,19 @@ pnpm dev                         # web at :3000 — localhost resolves tenant as
 4. In Directus: enable 2FA for admin, replace placeholder privacy/terms, paste real
    content blocks (~122 per `docs/06 §2`), set `beehiiv_publication_id` on the tenant.
 
-**Web (Vercel):**
-1. Import the repo, root directory `apps/web` (or use monorepo detection), framework Next.js.
-2. Env vars: `DIRECTUS_URL`, `DIRECTUS_STATIC_TOKEN`, `DIRECTUS_LEADS_TOKEN`,
-   `REPORT_TOKEN_SECRET` (32+ random bytes), `DEFAULT_TENANT=astro-note`,
-   optional `META_CAPI_TOKEN`.
-3. Add the tenant domains (`astronote.com`, `www`) to the Vercel project; point DNS
-   (Cloudflare proxy optional — `cf-ipcountry` then geo-gates the co-reg slot; on plain
-   Vercel `x-vercel-ip-country` is used).
+**Web (Docker on the VPS, behind Caddy + Cloudflare):**
+1. The web app runs as a container (`apps/web/Dockerfile`, Next.js standalone) defined
+   by `cms/web-compose.yml` → deployed to `/opt/astro-note-web` on the VPS by CI.
+   Runtime env lives in `/opt/astro-note-web/.env` (internal `DIRECTUS_URL=http://directus:8055`).
+2. Caddy (from the CMS stack) terminates TLS for both `CMS_DOMAIN` and `WEB_DOMAIN`
+   (set in `/opt/astro-note/.env`) and proxies `WEB_DOMAIN` → the web container.
+3. **Cloudflare (domain day)**: add the brand domain as a zone (free plan) → point
+   registrar nameservers at Cloudflare → DNS A record `@` and `www` → VPS IP with
+   **Proxied (orange cloud)** → SSL/TLS mode "Full (strict)". Add a Cache Rule:
+   cache eligible for `/_next/static/*` and `/brand/*` (long TTL); BYPASS `/api/*`
+   and `/report/*`. Cloudflare then provides the CDN + the `cf-ipcountry` header the
+   co-reg geo-gate reads. Finally set `WEB_DOMAIN=<domain>` in `/opt/astro-note/.env`,
+   restart Caddy, and add the domain to the tenant's `domains` in Directus.
 4. Smoke test: quiz → email → report on the real domain; confirm beehiiv double-opt-in
    email arrives (welcome email must use the `report_url` merge field, docs/08 §1).
 

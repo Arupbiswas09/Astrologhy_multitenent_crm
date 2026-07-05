@@ -7,3 +7,13 @@
 		X-Frame-Options "SAMEORIGIN"
 	}
 }
+
+# The web app (Next.js container on the shared network). Behind Cloudflare
+# (orange cloud) once the brand domain exists; sslip.io interim before that.
+{$WEB_DOMAIN} {
+	reverse_proxy astro-note-web:3000
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
